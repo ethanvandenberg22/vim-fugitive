@@ -127,6 +127,22 @@ function! fugitive#extract_git_dir(path) abort
   if s:shellslash(a:path) =~# '^fugitive://.*//'
     return matchstr(s:shellslash(a:path), '\C^fugitive://\zs.\{-\}\ze//')
   endif
+
+  " break out of submodule use for project cache (ie. tags/python-rope)
+  " and ctrlp searching based on getcwd() (assuming Glcd on file open)
+  if exists('b:fugitive_ignore_submodule')
+    " Only breaks out one submodule level unfortunately
+    let root = system(
+        \ "cd ".expand('%:h')." &&"
+        \ ." (cd $(git rev-parse --show-toplevel 2>/dev/null)/.."
+        \ ." && git rev-parse --show-toplevel 2>/dev/null)"
+        \ ." || git rev-parse --show-toplevel"
+        \ )
+    if !  v:shell_error && strlen(root) > 1
+      retu s:sub(root,'\n$','')."/.git"
+    en
+  en
+
   let root = s:shellslash(simplify(fnamemodify(a:path, ':p:s?[\/]$??')))
   let previous = ""
   while root !=# previous
