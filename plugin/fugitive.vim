@@ -133,7 +133,7 @@ function! fugitive#extract_git_dir(path) abort
   if exists('b:fugitive_ignore_submodule')
     " Only breaks out one submodule level unfortunately
     let root = system(
-        \ "cd ".expand('%:h')." &&"
+        \ "cd ".expand('%:p:h')." &&"
         \ ." (cd $(git rev-parse --show-toplevel 2>/dev/null)/.."
         \ ." && git rev-parse --show-toplevel 2>/dev/null)"
         \ ." || git rev-parse --show-toplevel"
