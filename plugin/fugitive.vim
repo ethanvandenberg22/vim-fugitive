@@ -123,11 +123,7 @@ function! fugitive#is_git_dir(path) abort
   return isdirectory(path.'objects') && isdirectory(path.'refs') && getfsize(path.'HEAD') > 10
 endfunction
 
-function! fugitive#extract_git_dir(path) abort
-  if s:shellslash(a:path) =~# '^fugitive://.*//'
-    return matchstr(s:shellslash(a:path), '\C^fugitive://\zs.\{-\}\ze//')
-  endif
-
+function! fugitive#extract_git_non_submodule_dir(path) abort
   " break out of submodule use for project cache (ie. tags/python-rope)
   " and ctrlp searching based on getcwd() (assuming Glcd on file open)
   if exists('b:fugitive_ignore_submodule')
@@ -142,6 +138,12 @@ function! fugitive#extract_git_dir(path) abort
       retu s:sub(root,'\n$','')."/.git"
     en
   en
+endf
+
+function! fugitive#extract_git_dir(path) abort
+  if s:shellslash(a:path) =~# '^fugitive://.*//'
+    return matchstr(s:shellslash(a:path), '\C^fugitive://\zs.\{-\}\ze//')
+  endif
 
   let root = s:shellslash(simplify(fnamemodify(a:path, ':p:s?[\/]$??')))
   let previous = ""
@@ -184,6 +186,10 @@ function! fugitive#detect(path) abort
   if exists('b:git_dir') && (b:git_dir ==# '' || b:git_dir =~# '/$')
     unlet b:git_dir
   endif
+  if !exists('b:git_non_submodule_dir')
+    let b:git_non_submodule_dir =
+          \ fugitive#extract_git_non_submodule_dir(a:path)
+  endif
   if !exists('b:git_dir')
     let dir = fugitive#extract_git_dir(a:path)
     if dir !=# ''
@@ -199,7 +205,11 @@ function! fugitive#detect(path) abort
       call buffer.setvar('&path', s:sub(buffer.getvar('&path'), '^\.%(,|$)', ''))
     endif
     if stridx(buffer.getvar('&tags'), escape(b:git_dir.'/tags', ', ')) == -1
-      call buffer.setvar('&tags', escape(b:git_dir.'/tags', ', ').','.buffer.getvar('&tags'))
+      call buffer.setvar(
+        \ '&tags',
+        \ escape(b:git_dir.'/tags', ', ')
+        \ .','.escape(b:git_non_submodule_dir.'/tags', ', ')
+        \ .','.buffer.getvar('&tags'))
       if &filetype !=# ''
         call buffer.setvar('&tags', escape(b:git_dir.'/'.&filetype.'.tags', ', ').','.buffer.getvar('&tags'))
       endif
@@ -262,6 +272,15 @@ function! s:repo_configured_tree() dict abort
   else
     return self._tree
   endif
+endfunction
+
+function! s:repo_submodule_parent_tree(...) dict abort
+  " echo system('cd $(git rev-parse --show-toplevel)/.. && git rev-parse --is-inside-work-tree 2>/dev/null')
+  if exists('b:fugitive_ignore_submodule')
+    retu join([b:git_non_submodule_dir, '..']+a:000,'/')
+  else
+  exe 'let return_value=self.tree('.join(a:000, ',').')'
+  retu return_value
 endfunction
 
 function! s:repo_tree(...) dict abort
@@ -346,7 +365,7 @@ function! s:repo_head(...) dict abort
     return branch
 endfunction
 
-call s:add_methods('repo',['dir','configured_tree','tree','bare','translate','head'])
+call s:add_methods('repo',['dir','configured_tree','tree','bare','translate','head','submodule_parent_tree'])
 
 function! s:repo_git_command(...) dict abort
   let git = g:fugitive_git_executable . ' --git-dir='.s:shellesc(self.git_dir)
@@ -686,8 +705,8 @@ function! s:DirComplete(A,L,P) abort
   return matches
 endfunction
 
-call s:command("-bar -bang -nargs=? -complete=customlist,s:DirComplete Gcd  :cd<bang>  `=s:repo().bare() ? s:repo().dir(<q-args>) : s:repo().tree(<q-args>)`")
-call s:command("-bar -bang -nargs=? -complete=customlist,s:DirComplete Glcd :lcd<bang> `=s:repo().bare() ? s:repo().dir(<q-args>) : s:repo().tree(<q-args>)`")
+call s:command("-bar -bang -nargs=? -complete=customlist,s:DirComplete Gcd  :cd<bang>  `=s:repo().bare() ? s:repo().dir(<q-args>) : s:repo().submodule_parent_tree(<q-args>)`")
+call s:command("-bar -bang -nargs=? -complete=customlist,s:DirComplete Glcd :lcd<bang> `=s:repo().bare() ? s:repo().dir(<q-args>) : s:repo().submodule_parent_tree(<q-args>)`")
 
 " }}}1
 " Gstatus {{{1
