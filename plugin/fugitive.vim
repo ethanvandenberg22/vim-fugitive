@@ -278,7 +278,7 @@ function! s:repo_submodule_parent_tree(...) dict abort
   " echo system('cd $(git rev-parse --show-toplevel)/.. && git rev-parse --is-inside-work-tree 2>/dev/null')
   if exists('b:fugitive_ignore_submodule')
     retu join([b:git_non_submodule_dir, '..']+a:000,'/')
-  else
+  en
   exe 'let return_value=self.tree('.join(a:000, ',').')'
   retu return_value
 endfunction
